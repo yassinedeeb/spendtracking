@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 from PIL import Image
 import json
+import io
 
 load_dotenv()
 
@@ -38,13 +39,30 @@ def upload_receipt():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-        model = genai.GenerativeModel('gemini-pro-vision')
-        # Convert image to RGB to standardize format and handle unsupported MIME types
-        img = Image.open(filepath).convert("RGB")
+        generation_config = genai.types.GenerationConfig(response_mime_type="application/json")
+        model = genai.GenerativeModel('gemini-pro-vision', generation_config=generation_config)
 
-        response = model.generate_content([GEMINI_PROMPT, img])
+        # Open the image and convert it to a supported format (PNG) in memory
+        try:
+            img = Image.open(filepath)
+            img_byte_arr = io.BytesIO()
+            img.save(img_byte_arr, format='PNG')
+        except IOError:
+            return jsonify({'error': 'Invalid image file provided'}), 400
+        img_byte_arr = img_byte_arr.getvalue()
 
-        # Clean up the response to extract the JSON part
+        # Create the content parts for the Gemini API
+        image_part = {
+            "mime_type": "image/png",
+            "data": img_byte_arr
+        }
+        prompt_part = {
+            "text": GEMINI_PROMPT
+        }
+
+        response = model.generate_content([prompt_part, image_part])
+
+        # Clean up the response to extract the JSON part, making it more robust
         cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
 
         try:
@@ -59,7 +77,7 @@ def save_receipt():
     data = request.get_json()
     store_name = data.get('store_name')
     date = data.get('date')
-    total = data.get('total')
+    total = float(data.get('total', 0))
     items = data.get('items')
     category_name = data.get('category')
 
@@ -74,8 +92,9 @@ def save_receipt():
         # Insert items
         if items:
             for item in items:
+                price = float(item.get('price', 0))
                 cursor.execute("INSERT INTO items (receipt_id, description, price) VALUES (?, ?, ?)",
-                               (receipt_id, item.get('description'), item.get('price')))
+                               (receipt_id, item.get('description'), price))
 
         # Handle category
         if category_name:
