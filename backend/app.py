@@ -39,7 +39,8 @@ def upload_receipt():
         file.save(filepath)
 
         model = genai.GenerativeModel('gemini-pro-vision')
-        img = Image.open(filepath)
+        # Convert image to RGB to standardize format and handle unsupported MIME types
+        img = Image.open(filepath).convert("RGB")
 
         response = model.generate_content([GEMINI_PROMPT, img])
 

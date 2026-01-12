@@ -15,7 +15,6 @@ This is a simple spend tracking application that allows you to upload receipts, 
     ```bash
     pip install -r requirements.txt
     ```
-    *(Note: A `requirements.txt` file will be generated in a later step)*
 
 3.  **Create an environment file:**
     Create a file named `.env` in the `backend` directory and add your Gemini API key:
